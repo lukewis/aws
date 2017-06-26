@@ -181,7 +181,7 @@
 							"sudo yum -y update\n",
 							"sudo yum install -y git\n",	
 							"git config --global user.name lukewis\n",
-							"git config --global user.email luke.wisniewski@gmail.com\n",
+							"git config --global user.email lukewis@users.noreply.github.com\n",
 							"git clone https://github.com/lukewis/aws.git\n",
 							"./aws/scripts/mongoanddockerinit.sh -u ",
 							{ "Ref" : "DbAdminUsername" },
