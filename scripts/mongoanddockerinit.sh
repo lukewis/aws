@@ -1,3 +1,4 @@
+#!/bin/bash
 USERNAME=""
 PASSWORD=""
 
@@ -33,7 +34,13 @@ sudo mkdir -p /data/db
 sudo mount /dev/xvdh /data/db
 
 # Setup the repository for installing mongo
-echo "[mongodb-org-3.2]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.2/x86_64/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-3.2.asc\n" > /etc/yum.repos.d/mongodb-org-3.2.repo
+echo "[mongodb-org-3.2]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/amazon/2013.03/mongodb-org/3.2/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-3.2.asc
+" > /etc/yum.repos.d/mongodb-org-3.2.repo
 sudo yum -y update
 # Install mongo server, shell and tools
 sudo yum install -y mongodb-org-server mongodb-org-shell mongodb-org-tools

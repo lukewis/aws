@@ -41,11 +41,12 @@
 		},
         "DbAdminUsername": {
 			"Description": "Username for the admin user of the database",
-			"Type": "String"		
+			"Type": "String"					
 		},
         "DbAdminPassword": {
 			"Description": "Password for the admin user of the database",
-			"Type": "String"	
+			"Type": "String",
+			"NoEcho": true	
 		}
 	},
 	"Conditions": {
@@ -127,7 +128,48 @@
 			}
 		}
 	},
-	"Resources": {
+	"Resources": {		
+		"EC2InstanceRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version" : "2012-10-17",
+					"Statement": [ {
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [ "ec2.amazonaws.com" ]
+						},
+						"Action": [ "sts:AssumeRole" ]
+					} ]
+				},
+				"Policies": [
+					{
+						"PolicyName": "MongoAndDockerInstancePolicy",
+						"PolicyDocument": {
+							"Version": "2012-10-17",
+							"Statement": [
+								{
+									"Effect": "Allow",
+									"Action": [
+										"s3:Get*",
+										"s3:List*"
+									],
+									"Resource": "*"
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+		"EC2InstanceProfile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Properties":{
+				"Roles": [
+					{ "Ref": "EC2InstanceRole" }
+				]				
+			}			
+		},
 		"NewSecurityGroup": {
 			"Type": "AWS::EC2::SecurityGroup",
 			"Condition": "CreateNewSecurityGroup",
@@ -151,6 +193,7 @@
 				"InstanceType": {
 					"Ref": "InstanceType"
 				},
+				"IamInstanceProfile": { "Ref": "EC2InstanceProfile" },
 				"SecurityGroups": [
 					"SSH from home"
 				],
@@ -180,14 +223,13 @@
                             "#!/bin/bash -xe\n",
 							"sudo yum -y update\n",
 							"sudo yum install -y git\n",	
-							"git config --global user.name lukewis\n",
-							"git config --global user.email lukewis@users.noreply.github.com\n",
-							"git clone https://github.com/lukewis/aws.git\n",
-							"./aws/scripts/mongoanddockerinit.sh -u ",
+							"mkdir -p /aws/scripts/\n",
+							"aws s3 cp s3://com.figtreesoftware.cf.scripts/mongoanddockerinit.sh /aws/scripts/mongoanddockerinit.sh\n",
+							"sudo chmod +x /aws/scripts/mongoanddockerinit.sh\n",
+							"/aws/scripts/mongoanddockerinit.sh -u ",
 							{ "Ref" : "DbAdminUsername" },
 							" -p ",
-							{ "Ref" : "DbAdminPassword" },
-							"\n"                            
+							{ "Ref" : "DbAdminPassword" }                            
 						]]
 					}
 				}
