@@ -81,3 +81,8 @@ chmod +x ./install
 sudo ./install auto
 # Print agent status
 sudo service codedeploy-agent status
+
+
+# Install nginx for reverse-proxy capabilities
+sudo yum install -y nginx
+sudo service nginx start
