@@ -5,7 +5,7 @@
 		"KeyName": {
 			"Description": "Name of an existing EC2 KeyPair to enable SSH access to the instance",
 			"Type": "AWS::EC2::KeyPair::KeyName",
-			"Default": "aws_lawisnie_default",
+			"Default": "lawisnie",
 			"ConstraintDescription": "must be the name of an existing EC2 KeyPair."
 		},
 		"InstanceType": {
@@ -33,12 +33,7 @@
 			"Default": "74.111.174.91/32",
 			"AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
 			"ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
-		},
-		"ExistingSecurityGroup": {
-			"Description": "An existing security group ID to use when creating the instance.  If not specified, one will be created that allows access from the SSHLocation specified (optional).",
-			"Default": "sg-e167219e",
-			"Type": "AWS::EC2::SecurityGroup::Id"
-		},
+		},		
         "DbAdminUsername": {
 			"Description": "Username for the admin user of the database",
 			"Type": "String"					
@@ -49,12 +44,7 @@
 			"NoEcho": true	
 		}
 	},
-	"Conditions": {
-		"CreateNewSecurityGroup": {
-			"Fn::Equals": [{
-				"Ref": "ExistingSecurityGroup"
-			}, "NONE"]
-		}
+	"Conditions": {		
 	},
 	"Mappings": {
 		"AWSInstanceType2Arch": {
@@ -162,6 +152,29 @@
 				]
 			}
 		},
+		"CodeDeployRole": {
+			"Type": "AWS::IAM::Role",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [
+						{
+						"Sid": "",
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [
+							"codedeploy.amazonaws.com"
+							]
+						},
+						"Action": "sts:AssumeRole"
+						}
+					]
+				},
+				"ManagedPolicyArns": [
+					"arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
+				]				
+			}
+		},
 		"EC2InstanceProfile": {
 			"Type": "AWS::IAM::InstanceProfile",
 			"Properties":{
@@ -170,17 +183,28 @@
 				]				
 			}			
 		},
-		"NewSecurityGroup": {
-			"Type": "AWS::EC2::SecurityGroup",
-			"Condition": "CreateNewSecurityGroup",
-			"Properties": {
-				"Id": "sg-e167219e",
-				"GroupName": "SSH from home",
+		"SecurityGroupSSHFromHome": {
+			"Type": "AWS::EC2::SecurityGroup",			
+			"Properties": {								
 				"GroupDescription": "Enable SSH access via port 22",
 				"SecurityGroupIngress": [{
 					"IpProtocol": "tcp",
 					"FromPort": "22",
 					"ToPort": "22",
+					"CidrIp": {
+						"Ref": "SSHLocation"
+					}
+				}]
+			}
+		},
+		"SecurityGroupMongoFromHome": {
+			"Type": "AWS::EC2::SecurityGroup",			
+			"Properties": {								
+				"GroupDescription": "Enable Mongo access via port 27017",
+				"SecurityGroupIngress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "27017",
+					"ToPort": "27017",
 					"CidrIp": {
 						"Ref": "SSHLocation"
 					}
@@ -195,7 +219,8 @@
 				},
 				"IamInstanceProfile": { "Ref": "EC2InstanceProfile" },
 				"SecurityGroups": [
-					"SSH from home"
+					{"Ref": "SecurityGroupSSHFromHome" },
+					{"Ref": "SecurityGroupMongoFromHome" }
 				],
 				"KeyName": {
 					"Ref": "KeyName"
@@ -217,19 +242,32 @@
 						}
 					]
 				},
+				"Tags": [
+					{
+						"Key" : "Name",
+						"Value" : { "Ref": "AWS::StackName" }
+					}
+				],
 				"UserData": {
 					"Fn::Base64": {
 						"Fn::Join": ["", [
-                            "#!/bin/bash -xe\n",
+                            "#!/bin/bash -xe\n",							
+							"# Ignore commands that start with a space.  We use this to prevent sensitive info from showing up in bash history",
+							"HISTCONTROL=ignoreboth",
 							"sudo yum -y update\n",
 							"sudo yum install -y git\n",	
-							"mkdir -p /aws/scripts/\n",
-							"aws s3 cp s3://com.figtreesoftware.cf.scripts/mongoanddockerinit.sh /aws/scripts/mongoanddockerinit.sh\n",
-							"sudo chmod +x /aws/scripts/mongoanddockerinit.sh\n",
-							"/aws/scripts/mongoanddockerinit.sh -u ",
+							"mkdir -p /src/repos/\n",
+							"cd /src/repos/\n",
+							"sudo -u ec2-user bash << \"EOF\"\n",
+							"sudo chown ec2-user /src/repos\n",
+							"git clone https://github.com/lukewis/aws.git\n",							
+							"# aws s3 cp s3://com.figtreesoftware.cf.scripts/mongoanddockerinit.sh /aws/scripts/mongoanddockerinit.sh\n",
+							" sudo /src/repos/aws/scripts/mongoanddockerinit.sh -u ",
 							{ "Ref" : "DbAdminUsername" },
 							" -p ",
-							{ "Ref" : "DbAdminPassword" }                            
+							{ "Ref" : "DbAdminPassword" },
+							"\n",
+							"EOF\n"							
 						]]
 					}
 				}
@@ -260,7 +298,31 @@
 				},
 				"Device": "/dev/sdh"
 			}
-		}
+		},
+		"CodeDeployApplication": {
+			"Type" : "AWS::CodeDeploy::Application",
+			"Properties" : {				
+			}
+		},
+		"CodeDeployDeploymentGroup": {
+			"Type": "AWS::CodeDeploy::DeploymentGroup",
+			"Properties":{
+				"ApplicationName": { "Ref": "CodeDeployApplication" },
+				"ServiceRoleArn": {"Fn::GetAtt" : ["CodeDeployRole", "Arn"] },
+				"Ec2TagFilters": [
+					{
+						"Key" : "Name",						
+						"Value" : { "Ref": "AWS::StackName" },
+						"Type": "KEY_AND_VALUE"
+					}
+				]
+			}
+		},
+		"CodeDeployS3Bucket": {
+			"Type" : "AWS::S3::Bucket",
+			"Properties" : {								
+			}
+		}		
 	},
 	"Outputs": {
 		"InstanceId": {
@@ -295,21 +357,7 @@
 					"PublicIp"
 				]
 			}
-		},
-		"SecurityGroupId": {
-			"Description": "Group ID of the security group used.",
-			"Value": {
-				"Fn::If": [
-					"CreateNewSecurityGroup",
-					{
-						"Ref": "NewSecurityGroup"
-					},
-					{
-						"Ref": "ExistingSecurityGroup"
-					}
-				]
-			}
-		}
+		}		
 	},
 	"Metadata": {
 		"AWS::CloudFormation::Designer": {
