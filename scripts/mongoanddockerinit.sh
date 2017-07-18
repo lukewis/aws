@@ -59,6 +59,9 @@ curl -sSL -o dotnet.tar.gz https://go.microsoft.com/fwlink/?linkid=848821
 sudo mkdir -p /opt/dotnet && sudo tar zxf dotnet.tar.gz -C /opt/dotnet
 sudo ln -s /opt/dotnet/dotnet /usr/local/bin
 
+# Force the initialization of the local package cache.  This takes a little while, so we want to do it right away
+dotnet new
+
 # This section currently throws an error on amazon linux
 # Install docker CE: https://docs.docker.com/engine/installation/linux/docker-ce/centos/#install-docker-ce
 #sudo yum install -y yum-utils device-mapper-persistent-data lvm2
