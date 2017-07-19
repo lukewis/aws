@@ -321,14 +321,16 @@
 			}
 		},
 		"CodeDeployApplication": {
-			"Type" : "AWS::CodeDeploy::Application",
+			"Type" : "AWS::CodeDeploy::Application",			
 			"Properties" : {				
+				"ApplicationName" : { "Ref": "AWS::StackName" }
 			}
 		},
 		"CodeDeployDeploymentGroup": {
 			"Type": "AWS::CodeDeploy::DeploymentGroup",
 			"Properties":{
 				"ApplicationName": { "Ref": "CodeDeployApplication" },
+				"DeploymentGroupName" : { "Ref": "AWS::StackName" },
 				"ServiceRoleArn": {"Fn::GetAtt" : ["CodeDeployRole", "Arn"] },
 				"Ec2TagFilters": [
 					{
